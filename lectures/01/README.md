@@ -1,5 +1,7 @@
 # Лекция 1. Введение
 
+* [Слайды](https://p.go.dbeliakov.ru/lectures/01/lecture_01.slide)
+
 ### Сдача заданий
 1. Сделать приватный fork репозитория
 2. Добавить [ключ](id_rsa.pub) в deploy keys (это даст read доступ в репозиторий)

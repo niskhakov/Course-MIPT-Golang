@@ -29,6 +29,101 @@ var (
 	ErrInvalidToken           = errors.New("invalid token")
 )
 
+func Encode(data interface{}, opts ...Option) ([]byte, error) {
+	var c config
+
+	// Применение опций
+	for _, opt := range opts {
+			opt(&c)
+	}
+
+	if c.TTL != nil && c.Expires != nil {
+		return nil, ErrConfigurationMalformed
+	}
+
+	if c.Expires != nil && c.Expires.Before(timeFunc()) {
+		return nil, ErrConfigurationMalformed
+	}
+
+	// Формирование заголовка
+	hdrEncoded := marshalAndEncodePart(header{
+		Alg: string(c.SignMethod),
+		Type: "JWT",
+	})
+	
+	// Формирование тела
+	var exp *int64
+	if c.Expires != nil {
+		exp = i64ptr(c.Expires.Unix())
+	}
+
+	if c.TTL != nil {
+		exp = i64ptr(timeFunc().Add(*c.TTL).Unix())
+	}
+	
+	pldEncoded := marshalAndEncodePart(payload{
+		Data: data,
+		Exp: exp,
+	})
+
+	// Формирование контрольной суммы
+	var b bytes.Buffer
+	b.WriteString(hdrEncoded)
+	b.WriteString(".")
+	b.WriteString(pldEncoded)
+
+	shasum, err := getControlSum(b.Bytes(), &c)
+	if err != nil {
+		return nil, err
+	}
+
+	b.WriteString(".")
+	b.Write(shasum)
+
+	return b.Bytes(), nil
+}
+
+func Decode(token []byte, data interface{}, opts ...Option) error {
+
+	var c config
+	for _, opt := range opts {
+		opt(&c)
+	}
+
+	parts := strings.Split(string(token), ".")
+	
+	if len(parts) != 3 {
+		return ErrInvalidToken
+	}
+
+	var hdr header
+	if err := decodeAndUnmarshalPart(parts[0], &hdr); err != nil {
+		return err
+	}
+	
+	var pld payloadIntermDecode
+	if err := decodeAndUnmarshalPart(parts[1], &pld); err != nil {
+		return err
+	}
+
+	if err := checkControlSum(token, &c); err != nil {
+		return err
+	}
+
+	if pld.Exp != nil && timeFunc().After(time.Unix(*pld.Exp, 0)) {
+		return ErrTokenExpired
+	}
+
+	if err := json.Unmarshal(pld.Data, data); err != nil {
+		return ErrInvalidToken
+	}
+
+	return nil
+}
+
+// To mock time in tests
+var timeFunc = time.Now
+
 type header struct {
 	Alg string `json:"alg"`
 	Type string `json:"typ"`
@@ -39,18 +134,17 @@ type payload struct {
 	Exp *int64 `json:"exp,omitempty"`
 }
 
-func int64pointer(x int64) *int64 {
+// Used on decoding intermediate step, when we'd like to see on Exp field w/out decoding Data
+type payloadIntermDecode struct {
+	Data json.RawMessage `json:"d"`
+	Exp *int64 `json:"exp,omitempty"`
+}
+
+func i64ptr(x int64) *int64 {
 	return &x
 }
 
-func int64value(x *int64) int64 {
-	if x == nil {
-		return 0
-	}
-	return *x
-}
-
-func getCryptoMethod(signMethod SignMethod) (_ func() hash.Hash, error bool) {
+func getCryptoMethod(signMethod SignMethod) (func() hash.Hash, error) {
 	var cryptoMethod func() hash.Hash
 	switch signMethod {
 	case HS256:
@@ -58,15 +152,15 @@ func getCryptoMethod(signMethod SignMethod) (_ func() hash.Hash, error bool) {
 	case HS512:
 		cryptoMethod = sha512.New
 	default:
-		return nil, true
+		return nil, ErrInvalidSignMethod
 	}
-	return cryptoMethod, false
+	return cryptoMethod, nil
 }
 
 func getControlSum(b []byte, c *config) ([]byte, error) {
 	cryptoMethod, err := getCryptoMethod(c.SignMethod)
-	if err {
-		return nil, ErrInvalidSignMethod
+	if err != nil {
+		return nil, err
 	}
 
 	h := hmac.New(cryptoMethod, []byte(c.Key))
@@ -118,98 +212,3 @@ func checkControlSum(token []byte, c *config) error {
 
 	return nil
 }
-
-func Encode(data interface{}, opts ...Option) ([]byte, error) {
-	var c config
-
-	// Применение опций
-	for _, opt := range opts {
-			opt(&c)
-	}
-
-	// Формирование заголовка
-	hdrEncoded := marshalAndEncodePart(header{
-		Alg: string(c.SignMethod),
-		Type: "JWT",
-	})
-	
-	// Формирование тела
-	var exp *int64
-	if c.Expires != nil {
-		exp = int64pointer(c.Expires.Unix())
-	}
-
-	if c.TTL != nil {
-		exp = int64pointer(timeFunc().Add(*c.TTL).Unix())
-	}
-
-	if c.TTL != nil && c.Expires != nil {
-		return nil, ErrConfigurationMalformed
-	}
-
-	if c.Expires != nil && c.Expires.Before(timeFunc()) {
-		return nil, ErrConfigurationMalformed
-	}
-	
-	pldEncoded := marshalAndEncodePart(payload{
-		Data: data,
-		Exp: exp,
-	})
-
-	// Формирование контрольной суммы
-	var b bytes.Buffer
-	b.WriteString(hdrEncoded)
-	b.WriteString(".")
-	b.WriteString(pldEncoded)
-
-	shasum, err := getControlSum(b.Bytes(), &c)
-	if err != nil {
-		return nil, err
-	}
-
-	b.WriteString(".")
-	b.Write(shasum)
-
-	return b.Bytes(), nil
-}
-
-func Decode(token []byte, data interface{}, opts ...Option) error {
-
-	var c config
-	for _, opt := range opts {
-		opt(&c)
-	}
-
-	parts := strings.Split(string(token), ".")
-	
-	if len(parts) != 3 {
-		return ErrInvalidToken
-	}
-
-	var hdr header
-	if err := decodeAndUnmarshalPart(parts[0], &hdr); err != nil {
-		return err
-	}
-	
-	var pld payload
-	if err := decodeAndUnmarshalPart(parts[1], &pld); err != nil {
-		return err
-	}
-
-	if err := checkControlSum(token, &c); err != nil {
-		return err
-	}
-
-	if pld.Exp != nil && timeFunc().After(time.Unix(int64value(pld.Exp), 0)) {
-		return ErrTokenExpired
-	}
-
-	// Bad code: need to be revised - writing to interface() variable
-	dataJson, _ := json.Marshal(pld.Data)
-	json.Unmarshal(dataJson, data)
-
-	return nil
-}
-
-// To mock time in tests
-var timeFunc = time.Now

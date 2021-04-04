@@ -20,7 +20,7 @@ func TestCalculatePi(t *testing.T) {
 	for i := 2; i <= 2; i++ {
 		g := NewTestGenerator(iterations)
 		res := CalculatePi(i, iterations, g)
-		require.True(t, math.Abs(res-expected) < 1e-6)
+		require.True(t, math.Abs(res-expected) < 1e-4)
 	}
 }
 

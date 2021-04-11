@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 )
 
 const (
@@ -15,9 +14,7 @@ const (
 )
 
 func TestCalculatePi(t *testing.T) {
-	goleak.VerifyNone(t)
-
-	for i := 2; i <= 2; i++ {
+	for i := 1; i <= 10; i++ {
 		g := NewTestGenerator(iterations)
 		res := CalculatePi(i, iterations, g)
 		require.True(t, math.Abs(res-expected) < 1e-4)

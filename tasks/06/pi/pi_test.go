@@ -15,7 +15,7 @@ const (
 )
 
 func TestCalculatePi(t *testing.T) {
-	goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 
 	for i := 1; i <= 5; i++ {
 		g := NewTestGenerator(iterations)

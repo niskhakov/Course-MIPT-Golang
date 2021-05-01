@@ -1,4 +1,4 @@
-score: 3
+Score: 3
 review-score: 4
 accepted:
   - github.com/dbeliakov/mipt-golang-tasks
@@ -6,3 +6,4 @@ accepted:
   - github.com/BigDaddyArrow/mipt-golang-course
   - github.com/fubss/mipt-golang-course
   - github.com/ChechetkinVV/golang-course
+  - github.com/Kud8/mipt_golang

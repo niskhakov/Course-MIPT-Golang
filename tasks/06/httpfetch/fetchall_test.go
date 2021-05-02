@@ -24,7 +24,7 @@ func TestFetchAll(t *testing.T) {
 	defer s.Close()
 
 	c := s.Client()
-	c.Timeout = 10 * time.Millisecond
+	c.Timeout = 500 * time.Millisecond
 	requests := makeReqs(s.URL)
 	results := FetchAll(c, requests)
 	require.Len(t, results, len(requests))
@@ -46,7 +46,7 @@ func handle(rw http.ResponseWriter, req *http.Request) {
 	status := chi.URLParam(req, "status")
 	statusCode, err := strconv.Atoi(status)
 	if err != nil {
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 		return
 	}
 	rw.WriteHeader(statusCode)

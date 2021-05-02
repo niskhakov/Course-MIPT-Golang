@@ -24,7 +24,7 @@ func TestFetchAll(t *testing.T) {
 	var ctx = context.Background()
 
 	c := s.Client()
-	c.Timeout = 10 * time.Millisecond
+	c.Timeout = 500 * time.Millisecond
 	requests, requestsCh := makeReqs(s.URL, true)
 
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
@@ -59,7 +59,7 @@ func TestFetchAll_Cancel(t *testing.T) {
 	var ctx, cancel = context.WithCancel(context.Background())
 
 	c := s.Client()
-	c.Timeout = 10 * time.Millisecond
+	c.Timeout = 500 * time.Millisecond
 	_, requestsCh := makeReqs(s.URL, false)
 
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
@@ -94,7 +94,7 @@ func handle(rw http.ResponseWriter, req *http.Request) {
 	status := chi.URLParam(req, "status")
 	statusCode, err := strconv.Atoi(status)
 	if err != nil {
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(2000 * time.Millisecond)
 		return
 	}
 	rw.WriteHeader(statusCode)
